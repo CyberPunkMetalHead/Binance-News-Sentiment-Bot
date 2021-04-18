@@ -9,6 +9,10 @@ Analyse the sentiment of each headline and categorise the output by coin
 
 Place a Buy order if the compound sentiment is positive
 
+The bot sells %99.5 of the coins it bought in order to avoid exceptions
+
+"coins_in_hand" dictionary stores the amount of coins the bot bought and currently holding.
+
 Configurable options
 
 Works with any number of cryptocurrencies
