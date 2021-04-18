@@ -4,8 +4,11 @@ import os, time
 # used to parse XML feeds
 import xml.etree.ElementTree as ET
 
-# get the XML feed and pass it to Element tree
-import requests
+# we use it to make async http requests
+import aiohttp
+
+# allows us to make our functions async 
+import asyncio
 
 # date modules that we'll most likely need
 from datetime import date, datetime, timedelta
@@ -31,6 +34,9 @@ from twisted.internet import reactor
 
 # used for executing the code
 from itertools import count
+
+# we use it to time our parser execution speed
+from timeit import default_timer as timer
 
 
 # get binance key and secret from environment variables
@@ -151,49 +157,70 @@ with open('Crypto feeds.csv') as csv_file:
         feeds.append(row[0])
 
 
-# TO DO - run this in multiple processes to speed up the scraping
-def get_headlines():
-    '''Returns the last headline for each link in the CSV file'''
+# Make headlines global variable as it should be the same across all functions
+headlines = {'source': [], 'title': [], 'pubDate' : [] }
 
+async def get_feed_data(session, feed, headers):
+    """
+    Get relevent data from rss feed, in async fashion
+
+    :param feed: The name of the feed we want to fetch
+    :param headers: The header we want on the request
+    :param timeout: The default timout before we give up and move on
+    :return: None, we don't need to return anything we append it all on the headlines dict
+
+    """
+    try:
+        async with session.get(feed, headers=headers, timeout=7) as response:
+            # define the root for our parsing
+            text = await response.text()
+            root = ET.fromstring(text)
+
+            channel = root.find('channel/item/title').text
+            pubDate = root.find('channel/item/pubDate').text
+            # some jank to ensure no alien characters are being passed
+            title = channel.encode('UTF-8').decode('UTF-8')
+
+            # append the source and the title
+            headlines['source'].append(feed)
+            # append the publication date
+            headlines['pubDate'].append(pubDate)
+            # append the title
+            headlines['title'].append(title)
+            print(channel)
+
+    except Exception as e:
+        # Catch any error and also print it
+        print(f'Could not parse error is: {e}')
+
+async def get_headlines():
+    """
+    Creates a an async task for each of our feeds which are appended to headlines
+
+    :return: None
+    """
     # add headers to the request for ElementTree. Parsing issues occur without headers
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:87.0) Gecko/20100101 Firefox/87.0'
     }
 
-    headlines = {'source': [], 'title': [], 'pubDate' : [] }
-
-    for feed in feeds:
-        try:
-            # grab the XML for each RSS feed
-            r = requests.get(feed, headers=headers, timeout=7)
-
-            # define the root for our parsing
-            root = ET.fromstring(r.text)
-
-            # identify the last Headline
-            channel = root.find('channel/item/title').text
-            pubDate = root.find('channel/item/pubDate').text
-
-            # append the source and the title
-            headlines['source'].append(feed)
-
-            # append the publication date
-            headlines['pubDate'].append(pubDate)
-
-
-            # some jank to ensure no alien characters are being passed
-            headlines['title'].append(channel.encode('UTF-8').decode('UTF-8'))
-            print(channel)
-        except:
-            print(f'Could not parse {feed}')
-
-    return headlines
-
+    # A nifty timer to see how long it takes to parse all the feeds
+    start = timer()
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for feed in feeds:
+            task = asyncio.ensure_future(get_feed_data(session, feed, headers))
+            tasks.append(task)
+        
+        # This makes sure we finish all tasks/requests before we continue executing our code
+        await asyncio.gather(*tasks)
+    end = timer()
+    print("Time it took to parse feeds: ", end - start)
 
 def categorise_headlines():
     '''arrange all headlines scaped in a dictionary matching the coin's name'''
     # get the headlines
-    headlines = get_headlines()
+    asyncio.run(get_headlines())
     categorised_headlines = {}
 
     # this loop will create a dictionary for each keyword defined
@@ -205,7 +232,6 @@ def categorise_headlines():
 
         # looping through each headline is required as well
         for headline in headlines['title']:
-
             # appends the headline containing the keyword to the correct dictionary
             if any(key in headline for key in keywords[keyword]):
                 categorised_headlines[keyword].append(headline)
