@@ -215,7 +215,7 @@ async def get_headlines():
         # This makes sure we finish all tasks/requests before we continue executing our code
         await asyncio.gather(*tasks)
     end = timer()
-    print("Time it took to parse feeds: ", end - start)
+    print("\nTime it took to parse feeds: ", end - start ,"\n")
 
 def categorise_headlines():
     '''arrange all headlines scaped in a dictionary matching the coin's name'''
@@ -302,7 +302,7 @@ def buy():
         if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] > MINUMUM_ARTICLES:
 
             # check the volume looks correct
-            print(f'preparing to buy {coin} with {volume[coin+PAIRING]} USDT at {CURRENT_PRICE[coin+PAIRING]}')
+            print(f'preparing to buy {volume[coin+PAIRING]} {coin} at rate {CURRENT_PRICE[coin+PAIRING]} USDT / 1 {coin} ')
 
             # create test order before pushing an actual order
             test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
