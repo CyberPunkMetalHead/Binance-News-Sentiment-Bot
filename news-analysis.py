@@ -276,7 +276,7 @@ def buy():
         if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] > MINUMUM_ARTICLES:
 
             # check the volume looks correct
-            print(f'preparing to buy {coin} with {volume} USDT at {CURRENT_PRICE[coin+PAIRING]}')
+            print(f'preparing to buy {coin} with {volume[coin+PAIRING]} USDT at {CURRENT_PRICE[coin+PAIRING]}')
 
             # create test order before pushing an actual order
             test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
