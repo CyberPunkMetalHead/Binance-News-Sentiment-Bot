@@ -63,13 +63,37 @@ client.API_URL = 'https://testnet.binance.vision/api'
 # Use each list to define keywords separated by commas: 'XRP': ['ripple', 'xrp']
 # keywords are case sensitive
 keywords = {
-    'XRP': ['ripple', 'xrp', 'XRP', 'Ripple', 'RIPPLE'],
-    'BTC': ['BTC', 'bitcoin', 'Bitcoin', 'BITCOIN'],
-    'XLM': ['Stellar Lumens', 'XLM'],
-    'BCH': ['Bitcoin Cash', 'BCH'],
     'ETH': ['ETH', 'Ethereum'],
     'BNB' : ['BNB', 'Binance Coin'],
-    'LTC': ['LTC', 'Litecoin']
+    'XRP': ['ripple', 'xrp', 'XRP', 'Ripple', 'RIPPLE'],
+#    'DOGE':['DOGE','Doge','DOGECOIN','Dogecoin','dogecoin'],
+#    'ADA': ['ADA', 'Cardano', 'CARDANO'],
+    'LTC': ['LTC', 'Litecoin'],
+    'BCH': ['Bitcoin Cash', 'BCH'],
+#    'COCOS':['COCOS','Cocos-BCX','Cocos'],
+#    'LINK':['LINK','Chainlink'],
+#    'VET': ['VET','VeChain'],
+    'XLM': ['Stellar Lumens', 'XLM'],
+#    'THETA': ['Theta Token', 'THETA'],
+#    'EOS': ['EOS'],
+#    'NEO': ['NEO'],
+#    'IOTA': ['IOTA','MIOTA'],
+#    'XMR': ['XMR','Moreno','MORENO'],
+#    'FTT': ['FTT','FTX Token'],
+#    'ATOM': ['ATOM','COSMOS','Cosmos'],
+#    'ALGO': ['ALGO','Algorand'],
+#    'XTZ': ['XTZ','Tezos'],
+#    'XEM': ['XEM','NEM'],
+#    'DASH': ['DASH','Dash'],
+#    'ZIL': ['ZIL', 'Zilliqa', 'ZILLIQA'],
+#    'QTUM': ['QTUM','Qtum'],
+#    'ZRX' :['ZRX','0x','0X'],
+#    'ZEC': ['ZEC','Zcash'],
+#    'DATA':['DATA','Streamr Network'],
+#    'ICX' :['ICX','ICON'],
+#    '1INCH': ['1INCH', '1inch'],
+#    'KAVA':['KAVA','Kava'],
+    'BTC': ['BTC', 'bitcoin', 'Bitcoin', 'BITCOIN']
     }
 
 # The Buy amount in the PAIRING symbol, by default USDT
