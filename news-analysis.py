@@ -358,8 +358,6 @@ def buy(compiled_sentiment, headlines_analysed):
                 # print order condirmation to the console
                 print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} at {utc_time} and bought at {bought_at}")
 
-                return bought_at, order
-
         else:
             print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
@@ -411,7 +409,6 @@ def sell(compiled_sentiment, headlines_analysed):
 
                 # print order condirmation to the console
                 print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} coins sold for {sold_at} each at {utc_time}")
-
 
         else:
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
