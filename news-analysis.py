@@ -64,13 +64,37 @@ client.API_URL = 'https://testnet.binance.vision/api'
 # Use each list to define keywords separated by commas: 'XRP': ['ripple', 'xrp']
 # keywords are case sensitive
 keywords = {
-    'XRP': ['ripple', 'xrp', 'XRP', 'Ripple', 'RIPPLE'],
-    'BTC': ['BTC', 'bitcoin', 'Bitcoin', 'BITCOIN'],
-    'XLM': ['Stellar Lumens', 'XLM'],
-    #'BCH': ['Bitcoin Cash', 'BCH'],
     'ETH': ['ETH', 'Ethereum'],
     'BNB' : ['BNB', 'Binance Coin'],
-    'LTC': ['LTC', 'Litecoin']
+    'XRP': ['ripple', 'xrp', 'XRP', 'Ripple', 'RIPPLE'],
+#    'DOGE':['DOGE','Doge','DOGECOIN','Dogecoin','dogecoin'],
+#    'ADA': ['ADA', 'Cardano', 'CARDANO'],
+#    'LTC': ['LTC', 'Litecoin'],
+#    'BCH': ['Bitcoin Cash', 'BCH'],
+#    'COCOS':['COCOS','Cocos-BCX','Cocos'],
+#    'LINK':['LINK','Chainlink'],
+#    'VET': ['VET','VeChain'],
+#    'XLM': ['Stellar Lumens', 'XLM'],
+#    'THETA': ['Theta Token', 'THETA'],
+#    'EOS': ['EOS'],
+#    'NEO': ['NEO'],
+#    'IOTA': ['IOTA','MIOTA'],
+#    'XMR': ['XMR','Moreno','MORENO'],
+#    'FTT': ['FTT','FTX Token'],
+#    'ATOM': ['ATOM','COSMOS','Cosmos'],
+#    'ALGO': ['ALGO','Algorand'],
+#    'XTZ': ['XTZ','Tezos'],
+#    'XEM': ['XEM','NEM'],
+#    'DASH': ['DASH','Dash'],
+#    'ZIL': ['ZIL', 'Zilliqa', 'ZILLIQA'],
+#    'QTUM': ['QTUM','Qtum'],
+#    'ZRX' :['ZRX','0x','0X'],
+#    'ZEC': ['ZEC','Zcash'],
+#    'DATA':['DATA','Streamr Network'],
+#    'ICX' :['ICX','ICON'],
+#    '1INCH': ['1INCH', '1inch'],
+#    'KAVA':['KAVA','Kava'],
+    'BTC': ['BTC', 'bitcoin', 'Bitcoin', 'BITCOIN']
     }
 
 # The Buy amount in the PAIRING symbol, by default USDT
@@ -84,8 +108,8 @@ PAIRING = 'USDT'
 # define how positive the news should be in order to place a trade
 # the number is a compound of neg, neu and pos values from the nltk analysis
 # input a number between -1 and 1
-SENTIMENT_THRESHOLD = 0
-NEGATIVE_SENTIMENT_THRESHOLD = 0
+BUY_SENTIMENT_THRESHOLD = 0
+SELL_SENTIMENT_THRESHOLD = 0
 
 # define the minimum number of articles that need to be analysed in order
 # for the sentiment analysis to qualify for a trade signal
@@ -227,7 +251,7 @@ async def get_headlines():
         # This makes sure we finish all tasks/requests before we continue executing our code
         await asyncio.gather(*tasks)
     end = timer()
-    print("Time it took to parse feeds: ", end - start)
+    print("\nTime it took to parse feeds: ", end - start)
 
 
 def categorise_headlines():
@@ -314,10 +338,11 @@ def buy(compiled_sentiment, headlines_analysed):
     for coin in compiled_sentiment:
 
         # check if the sentiment and number of articles are over the given threshold
-        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES:
+        if compiled_sentiment[coin] > BUY_SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES:
 
             # check the volume looks correct
-            print(f'preparing to buy {volume[coin+PAIRING]} {coin} with {PAIRING} at {CURRENT_PRICE[coin+PAIRING]}')
+            print(f'preparing to buy {volume[coin+PAIRING]} {coin} at rate 1 {coin} /{CURRENT_PRICE[coin+PAIRING]} USDT')
+            #print(f'preparing to buy {volume[coin+PAIRING]} {coin} with {PAIRING} at {CURRENT_PRICE[coin+PAIRING]}')
 
             # create test order before pushing an actual order
             test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
@@ -369,10 +394,10 @@ def sell(compiled_sentiment, headlines_analysed):
     for coin in compiled_sentiment:
 
         # check if the sentiment and number of articles are over the given threshold
-        if compiled_sentiment[coin] < NEGATIVE_SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES and coins_in_hand[coin]>0:
+        if compiled_sentiment[coin] < SELL_SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES and coins_in_hand[coin]>0:
 
             # check the volume looks correct
-            print(f'preparing to sell {coins_in_hand[coin]} {coin} at {CURRENT_PRICE[coin+PAIRING]}')
+            print(f'preparing to sell {coins_in_hand[coin]} {coin} at rate 1 {coin} /{CURRENT_PRICE[coin+PAIRING]} USDT')
 
             # create test order before pushing an actual order
             test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=coins_in_hand[coin]*99.5/100 )
@@ -422,5 +447,5 @@ if __name__ == '__main__':
         buy(compiled_sentiment, headlines_analysed)
         print("\nSELL CHECKS:")
         sell(compiled_sentiment, headlines_analysed)
-        print(f'Iteration {i}')
+        print(f'\nIteration {i}\n')
         time.sleep(60 * REPEAT_EVERY)
