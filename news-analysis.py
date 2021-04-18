@@ -18,6 +18,7 @@ import numpy as np
 
 # nlp library to analyse sentiment
 import nltk
+nltk.downloader.download('vader_lexicon')
 from nltk.sentiment import SentimentIntensityAnalyzer
 
 # needed for the binance API
