@@ -454,7 +454,6 @@ def save_coins_in_hand_to_file():
     # save to coins_in_hand.dat
     with open('coins_in_hand.dat', 'wb') as file:
         pickle.dump(coins_in_hand, file)
-        file.close()
 
 def load_coins_in_hand_from_file():
     path = 'coins_in_hand.dat'
@@ -465,7 +464,6 @@ def load_coins_in_hand_from_file():
 
     with open(path, 'rb') as file:
         coins_in_hand = pickle.load(file)
-        file.close()
 
 if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
