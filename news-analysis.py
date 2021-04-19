@@ -130,23 +130,50 @@ for coin in keywords:
     conn_key = bsm.start_symbol_ticker_socket(coin+PAIRING, ticker_socket)
 bsm.start()
 
+def find_lot_size():
+    '''Find step size for each coin
+    For example, BTC supports a volume accuracy of
+    0.000001, while XRP only 0.1
+    '''
+    lot_size = {}
+    for coin in keywords:
+
+        try:
+            info = client.get_symbol_info(coin+PAIRING)
+            step_size = info['filters'][2]['stepSize']
+            lot_size[coin+PAIRING] = step_size.index('1') - 1
+
+        except:
+            pass
+
+    return lot_size
+
 
 def calculate_volume():
     '''Calculate the amount of CRYPTO to trade in USDT'''
+    lot_size = find_lot_size()
 
     while CURRENT_PRICE == {}:
         print('Connecting to the socket...')
         time.sleep(3)
+
     else:
         volume = {}
         for coin in CURRENT_PRICE:
             volume[coin] = float(QUANTITY / float(CURRENT_PRICE[coin]))
 
-            # XRP lot only supports 5 decimal points.
-            if coin == 'XRPUSDT':
+            try:
+                info = client.get_symbol_info(coin)
+                step_size = info['filters'][2]['stepSize']
+                lot_size[coin] = step_size.index('1') - 1
+
+            except:
+                pass
+
                 volume[coin] = float('{:.1f}'.format(volume[coin]))
+
             else:
-                volume[coin] = float('{:.6f}'.format(volume[coin]))
+                volume[coin] = float('{:.{}f}'.format(volume[coin], lot_size[coin]))
 
         return volume
 
@@ -310,7 +337,6 @@ def compound_average():
 def buy(compiled_sentiment, headlines_analysed):
     '''Check if the sentiment is positive and keyword is found for each handle'''
     volume = calculate_volume()
-    print(compiled_sentiment)
     for coin in compiled_sentiment:
 
         # check if the sentiment and number of articles are over the given threshold
@@ -423,4 +449,4 @@ if __name__ == '__main__':
         print("\nSELL CHECKS:")
         sell(compiled_sentiment, headlines_analysed)
         print(f'Iteration {i}')
-        time.sleep(60 * REPEAT_EVERY)
+        time.sleep(1 * REPEAT_EVERY)
