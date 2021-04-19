@@ -17,6 +17,12 @@ from datetime import date, datetime, timedelta
 # used to grab the XML url list from a CSV file
 import csv
 
+# used to save and load Coins in hand list
+import pickle
+
+# for basic system file operations
+import os
+
 # numpy for sums and means
 import numpy as np
 
@@ -440,14 +446,36 @@ def sell(compiled_sentiment, headlines_analysed):
         else:
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
+def save_coins_in_hand_to_file():
+    # abort saving if list is empty
+    if not coins_in_hand:
+        return
+
+    # save to coins_in_hand.dat
+    with open('coins_in_hand.dat', 'wb') as file:
+        pickle.dump(coins_in_hand, file)
+        file.close()
+
+def load_coins_in_hand_from_file():
+    path = 'coins_in_hand.dat'
+
+    # abort if file doesn't exist
+    if not os.path.isfile(path):
+        return
+
+    with open(path, 'rb') as file:
+        coins_in_hand = pickle.load(file)
+        file.close()
 
 if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
+    load_coins_in_hand_from_file()
     for i in count():
         compiled_sentiment, headlines_analysed = compound_average()
         print("\nBUY CHECKS:")
         buy(compiled_sentiment, headlines_analysed)
         print("\nSELL CHECKS:")
         sell(compiled_sentiment, headlines_analysed)
+        save_coins_in_hand_to_file()
         print(f'Iteration {i}')
         time.sleep(1 * REPEAT_EVERY)
