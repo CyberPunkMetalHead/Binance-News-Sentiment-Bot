@@ -130,6 +130,7 @@ for coin in keywords:
     conn_key = bsm.start_symbol_ticker_socket(coin+PAIRING, ticker_socket)
 bsm.start()
 
+
 def find_lot_size():
     '''Find step size for each coin
     For example, BTC supports a volume accuracy of
