@@ -1,3 +1,4 @@
+
 # import for environment variables and waiting
 import os, time
 
@@ -7,7 +8,7 @@ import xml.etree.ElementTree as ET
 # we use it to make async http requests
 import aiohttp
 
-# allows us to make our functions async 
+# allows us to make our functions async
 import asyncio
 
 # date modules that we'll most likely need
@@ -66,7 +67,7 @@ keywords = {
     'XRP': ['ripple', 'xrp', 'XRP', 'Ripple', 'RIPPLE'],
     'BTC': ['BTC', 'bitcoin', 'Bitcoin', 'BITCOIN'],
     'XLM': ['Stellar Lumens', 'XLM'],
-    'BCH': ['Bitcoin Cash', 'BCH'],
+    #'BCH': ['Bitcoin Cash', 'BCH'],
     'ETH': ['ETH', 'Ethereum'],
     'BNB' : ['BNB', 'Binance Coin'],
     'LTC': ['LTC', 'Litecoin']
@@ -83,12 +84,13 @@ PAIRING = 'USDT'
 # define how positive the news should be in order to place a trade
 # the number is a compound of neg, neu and pos values from the nltk analysis
 # input a number between -1 and 1
-SENTIMENT_THRESHOLD = 0.5
+SENTIMENT_THRESHOLD = 0
+NEGATIVE_SENTIMENT_THRESHOLD = 0
 
 # define the minimum number of articles that need to be analysed in order
 # for the sentiment analysis to qualify for a trade signal
 # avoid using 1 as that's not representative of the overall sentiment
-MINUMUM_ARTICLES = 10
+MINUMUM_ARTICLES = 1
 
 # define how often to run the code (check for new + try to place trades)
 # in minutes
@@ -102,6 +104,12 @@ REPEAT_EVERY = 60
 
 
 
+
+# coins that bought by the bot since its start
+coins_in_hand  = {}
+# initializing the volumes at hand
+for coin in keywords:
+  coins_in_hand[coin] = 0
 
 # current price of CRYPTO pulled through the websocket
 CURRENT_PRICE = {}
@@ -123,17 +131,50 @@ for coin in keywords:
 bsm.start()
 
 
+def find_lot_size():
+    '''Find step size for each coin
+    For example, BTC supports a volume accuracy of
+    0.000001, while XRP only 0.1
+    '''
+    lot_size = {}
+    for coin in keywords:
+
+        try:
+            info = client.get_symbol_info(coin+PAIRING)
+            step_size = info['filters'][2]['stepSize']
+            lot_size[coin+PAIRING] = step_size.index('1') - 1
+
+        except:
+            pass
+
+    return lot_size
+
+
 def calculate_volume():
     '''Calculate the amount of CRYPTO to trade in USDT'''
+    lot_size = find_lot_size()
 
     while CURRENT_PRICE == {}:
         print('Connecting to the socket...')
         time.sleep(3)
+
     else:
         volume = {}
         for coin in CURRENT_PRICE:
             volume[coin] = float(QUANTITY / float(CURRENT_PRICE[coin]))
-            volume[coin] = float('{:.6f}'.format(volume[coin]))
+
+            try:
+                info = client.get_symbol_info(coin)
+                step_size = info['filters'][2]['stepSize']
+                lot_size[coin] = step_size.index('1') - 1
+
+            except:
+                pass
+
+                volume[coin] = float('{:.1f}'.format(volume[coin]))
+
+            else:
+                volume[coin] = float('{:.{}f}'.format(volume[coin], lot_size[coin]))
 
         return volume
 
@@ -160,16 +201,15 @@ with open('Crypto feeds.csv') as csv_file:
 # Make headlines global variable as it should be the same across all functions
 headlines = {'source': [], 'title': [], 'pubDate' : [] }
 
-async def get_feed_data(session, feed, headers):
-    """
-    Get relevent data from rss feed, in async fashion
 
+async def get_feed_data(session, feed, headers):
+    '''
+    Get relevent data from rss feed, in async fashion
     :param feed: The name of the feed we want to fetch
     :param headers: The header we want on the request
     :param timeout: The default timout before we give up and move on
     :return: None, we don't need to return anything we append it all on the headlines dict
-
-    """
+    '''
     try:
         async with session.get(feed, headers=headers, timeout=7) as response:
             # define the root for our parsing
@@ -181,7 +221,7 @@ async def get_feed_data(session, feed, headers):
             # some jank to ensure no alien characters are being passed
             title = channel.encode('UTF-8').decode('UTF-8')
 
-            # append the source and the title
+            # append the source
             headlines['source'].append(feed)
             # append the publication date
             headlines['pubDate'].append(pubDate)
@@ -191,14 +231,14 @@ async def get_feed_data(session, feed, headers):
 
     except Exception as e:
         # Catch any error and also print it
-        print(f'Could not parse error is: {e}')
+        print(f'Could not parse {feed} error is: {e}')
+
 
 async def get_headlines():
-    """
+    '''
     Creates a an async task for each of our feeds which are appended to headlines
-
     :return: None
-    """
+    '''
     # add headers to the request for ElementTree. Parsing issues occur without headers
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:87.0) Gecko/20100101 Firefox/87.0'
@@ -211,11 +251,12 @@ async def get_headlines():
         for feed in feeds:
             task = asyncio.ensure_future(get_feed_data(session, feed, headers))
             tasks.append(task)
-        
+
         # This makes sure we finish all tasks/requests before we continue executing our code
         await asyncio.gather(*tasks)
     end = timer()
     print("Time it took to parse feeds: ", end - start)
+
 
 def categorise_headlines():
     '''arrange all headlines scaped in a dictionary matching the coin's name'''
@@ -271,6 +312,7 @@ def compile_sentiment():
 
     return compiled_sentiment
 
+
 def compound_average():
     '''Calculates and returns the average compoud sentiment for each coin'''
     compiled_sentiment = compile_sentiment()
@@ -291,18 +333,18 @@ def compound_average():
     return compiled_sentiment, headlines_analysed
 
 
-def buy():
-    '''Check if the sentiment is positive and keyword is found for each handle'''
-    compiled_sentiment, headlines_analysed = compound_average()
-    volume = calculate_volume()
 
+
+def buy(compiled_sentiment, headlines_analysed):
+    '''Check if the sentiment is positive and keyword is found for each handle'''
+    volume = calculate_volume()
     for coin in compiled_sentiment:
 
         # check if the sentiment and number of articles are over the given threshold
-        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] > MINUMUM_ARTICLES:
+        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES:
 
             # check the volume looks correct
-            print(f'preparing to buy {coin} with {volume[coin+PAIRING]} USDT at {CURRENT_PRICE[coin+PAIRING]}')
+            print(f'preparing to buy {volume[coin+PAIRING]} {coin} with {PAIRING} at {CURRENT_PRICE[coin+PAIRING]}')
 
             # create test order before pushing an actual order
             test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
@@ -319,12 +361,17 @@ def buy():
             #error handling here in case position cannot be placed
             except BinanceAPIException as e:
                 print(e)
+                pass
 
             except BinanceOrderException as e:
                 print(e)
+                pass
 
             # run the else block if the position has been placed and return some info
             else:
+                # adds coin to our portfolio
+                coins_in_hand[coin] += volume[coin+PAIRING]
+
                 # retrieve the last order
                 order = client.get_all_orders(symbol=coin+PAIRING, limit=1)
 
@@ -338,16 +385,69 @@ def buy():
                 # print order condirmation to the console
                 print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} at {utc_time} and bought at {bought_at}")
 
-                return bought_at, order
-
         else:
             print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
 
 
+
+def sell(compiled_sentiment, headlines_analysed):
+    '''Check if the sentiment is negative and keyword is found for each handle'''
+    for coin in compiled_sentiment:
+
+        # check if the sentiment and number of articles are over the given threshold
+        if compiled_sentiment[coin] < NEGATIVE_SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES and coins_in_hand[coin]>0:
+
+            # check the volume looks correct
+            print(f'preparing to sell {coins_in_hand[coin]} {coin} at {CURRENT_PRICE[coin+PAIRING]}')
+
+            # create test order before pushing an actual order
+            test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=coins_in_hand[coin]*99.5/100 )
+
+            # try to create a real order if the test orders did not raise an exception
+            try:
+                buy_limit = client.create_order(
+                    symbol=coin+PAIRING,
+                    side='SELL',
+                    type='MARKET',
+                    quantity=coins_in_hand[coin]*99.5/100
+                )
+
+            #error handling here in case position cannot be placed
+            except BinanceAPIException as e:
+                print(e)
+
+            except BinanceOrderException as e:
+                print(e)
+
+            # run the else block if the position has been placed and return some info
+            else:
+                # set coin to 0
+                coins_in_hand[coin]=0
+                # retrieve the last order
+                order = client.get_all_orders(symbol=coin+PAIRING, limit=1)
+
+                # convert order timsestamp into UTC format
+                time = order[0]['time'] / 1000
+                utc_time = datetime.fromtimestamp(time)
+
+                # grab the price of CRYPTO the order was placed at for reporting
+                sold_at = CURRENT_PRICE[coin+PAIRING]
+
+                # print order condirmation to the console
+                print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} coins sold for {sold_at} each at {utc_time}")
+
+        else:
+            print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
+
+
 if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
     for i in count():
-        buy()
+        compiled_sentiment, headlines_analysed = compound_average()
+        print("\nBUY CHECKS:")
+        buy(compiled_sentiment, headlines_analysed)
+        print("\nSELL CHECKS:")
+        sell(compiled_sentiment, headlines_analysed)
         print(f'Iteration {i}')
-        time.sleep(60 * REPEAT_EVERY)
+        time.sleep(1 * REPEAT_EVERY)
