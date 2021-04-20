@@ -93,7 +93,7 @@ NEGATIVE_SENTIMENT_THRESHOLD = 0
 MINUMUM_ARTICLES = 1
 
 # define how often to run the code (check for new + try to place trades)
-# in minutes
+# in seconds
 REPEAT_EVERY = 60
 
 
@@ -130,29 +130,9 @@ for coin in keywords:
     conn_key = bsm.start_symbol_ticker_socket(coin+PAIRING, ticker_socket)
 bsm.start()
 
-
-def find_lot_size():
-    '''Find step size for each coin
-    For example, BTC supports a volume accuracy of
-    0.000001, while XRP only 0.1
-    '''
-    lot_size = {}
-    for coin in keywords:
-
-        try:
-            info = client.get_symbol_info(coin+PAIRING)
-            step_size = info['filters'][2]['stepSize']
-            lot_size[coin+PAIRING] = step_size.index('1') - 1
-
-        except:
-            pass
-
-    return lot_size
-
-
 def calculate_volume():
-    '''Calculate the amount of CRYPTO to trade in USDT'''
-    lot_size = find_lot_size()
+    '''Calculate the amount of CRYPTO to trade in USDT. for instance, if we are to buy 100$ of BNB (for instance 500$), this means that we intend to buy 0.2BNB'''
+    lot_size = {}
 
     while CURRENT_PRICE == {}:
         print('Connecting to the socket...')
@@ -164,6 +144,10 @@ def calculate_volume():
             volume[coin] = float(QUANTITY / float(CURRENT_PRICE[coin]))
 
             try:
+                '''Find step size for each coin
+                For example, BTC supports a volume accuracy of
+                0.000001, while XRP only 0.1'''
+
                 info = client.get_symbol_info(coin)
                 step_size = info['filters'][2]['stepSize']
                 lot_size[coin] = step_size.index('1') - 1
@@ -211,7 +195,7 @@ async def get_feed_data(session, feed, headers):
     :return: None, we don't need to return anything we append it all on the headlines dict
     '''
     try:
-        async with session.get(feed, headers=headers, timeout=7) as response:
+        async with session.get(feed, headers=headers, timeout=60) as response:
             # define the root for our parsing
             text = await response.text()
             root = ET.fromstring(text)
