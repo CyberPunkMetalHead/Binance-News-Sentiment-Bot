@@ -113,9 +113,19 @@ REPEAT_EVERY = 60
 
 # coins that bought by the bot since its start
 coins_in_hand  = {}
-# initializing the volumes at hand
+
+# path to the saved coins_in_hand file
+coins_in_hand_file_path = 'coins_in_hand.dat'
+
+# if saved coins_in_hand file does exist then load it
+if os.path.isfile(coins_in_hand_file_path):
+    with open(coins_in_hand_file_path, 'rb') as file:
+        coins_in_hand = pickle.load(file)
+
+# and add coins from actual keywords if they aren't there
 for coin in keywords:
-  coins_in_hand[coin] = 0
+    if coin not in coins_in_hand:
+        coins_in_hand[coin] = 0
 
 # current price of CRYPTO pulled through the websocket
 CURRENT_PRICE = {}
@@ -447,27 +457,17 @@ def sell(compiled_sentiment, headlines_analysed):
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
 def save_coins_in_hand_to_file():
-    # abort saving if list is empty
+    # abort saving if dictionary is empty
     if not coins_in_hand:
         return
 
     # save to coins_in_hand.dat
-    with open('coins_in_hand.dat', 'wb') as file:
+    with open(coins_in_hand_file_path, 'wb') as file:
         pickle.dump(coins_in_hand, file)
 
-def load_coins_in_hand_from_file():
-    path = 'coins_in_hand.dat'
-
-    # abort if file doesn't exist
-    if not os.path.isfile(path):
-        return
-
-    with open(path, 'rb') as file:
-        coins_in_hand = pickle.load(file)
 
 if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
-    load_coins_in_hand_from_file()
     for i in count():
         compiled_sentiment, headlines_analysed = compound_average()
         print("\nBUY CHECKS:")
