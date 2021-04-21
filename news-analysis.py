@@ -22,6 +22,7 @@ import numpy as np
 
 # nlp library to analyse sentiment
 import nltk
+import pytz
 from nltk.sentiment import SentimentIntensityAnalyzer
 
 # needed for the binance API
@@ -96,6 +97,10 @@ MINUMUM_ARTICLES = 1
 # in minutes
 REPEAT_EVERY = 60
 
+# define how old an article can be to be included
+# in hours
+HOURS_PAST = 24
+
 
 ############################################
 #        END OF USER INPUT VARIABLES       #
@@ -131,29 +136,42 @@ for coin in keywords:
 bsm.start()
 
 
-def find_lot_size():
-    '''Find step size for each coin
-    For example, BTC supports a volume accuracy of
-    0.000001, while XRP only 0.1
-    '''
-    lot_size = {}
-    for coin in keywords:
+'''For the amount of CRYPTO to trade in USDT'''
+lot_size = {}
 
-        try:
-            info = client.get_symbol_info(coin+PAIRING)
-            step_size = info['filters'][2]['stepSize']
-            lot_size[coin+PAIRING] = step_size.index('1') - 1
+'''Find step size for each coin
+For example, BTC supports a volume accuracy of
+0.000001, while XRP only 0.1
+'''
+for coin in keywords:
 
-        except:
-            pass
+    try:
+        info = client.get_symbol_info(coin+PAIRING)
+        step_size = info['filters'][2]['stepSize']
+        lot_size[coin+PAIRING] = step_size.index('1') - 1
 
-    return lot_size
+    except:
+        pass
+for coin in keywords:
+    try:
+        info = client.get_symbol_info(coin)
+        step_size = info['filters'][2]['stepSize']
+        lot_size[coin] = step_size.index('1') - 1
+
+    except:
+        pass
+
+
+
+def calculate_one_volume_from_lot_size(coin, amount):
+    if coin not in lot_size:
+        return float('{:.1f}'.format(amount))
+
+    else:
+        return float('{:.{}f}'.format(amount, lot_size[coin]))
 
 
 def calculate_volume():
-    '''Calculate the amount of CRYPTO to trade in USDT'''
-    lot_size = find_lot_size()
-
     while CURRENT_PRICE == {}:
         print('Connecting to the socket...')
         time.sleep(3)
@@ -162,19 +180,7 @@ def calculate_volume():
         volume = {}
         for coin in CURRENT_PRICE:
             volume[coin] = float(QUANTITY / float(CURRENT_PRICE[coin]))
-
-            try:
-                info = client.get_symbol_info(coin)
-                step_size = info['filters'][2]['stepSize']
-                lot_size[coin] = step_size.index('1') - 1
-
-            except:
-                pass
-
-                volume[coin] = float('{:.1f}'.format(volume[coin]))
-
-            else:
-                volume[coin] = float('{:.{}f}'.format(volume[coin], lot_size[coin]))
+            volume[coin] = calculate_one_volume_from_lot_size(coin, volume[coin])
 
         return volume
 
@@ -221,13 +227,21 @@ async def get_feed_data(session, feed, headers):
             # some jank to ensure no alien characters are being passed
             title = channel.encode('UTF-8').decode('UTF-8')
 
-            # append the source
-            headlines['source'].append(feed)
-            # append the publication date
-            headlines['pubDate'].append(pubDate)
-            # append the title
-            headlines['title'].append(title)
-            print(channel)
+            # convert pubDat to datetime
+            published = datetime.strptime(pubDate.replace("GMT", "+0000"), '%a, %d %b %Y %H:%M:%S %z')
+            # calculate timedelta
+            time_between = datetime.now(pytz.utc) - published
+
+            #print(f'Czas: {time_between.total_seconds() / (60 * 60)}')
+
+            if time_between.total_seconds() / (60 * 60) <= HOURS_PAST:
+                # append the source
+                headlines['source'].append(feed)
+                # append the publication date
+                headlines['pubDate'].append(pubDate)
+                # append the title
+                headlines['title'].append(title)
+                print(channel)
 
     except Exception as e:
         # Catch any error and also print it
@@ -340,9 +354,9 @@ def buy(compiled_sentiment, headlines_analysed):
     volume = calculate_volume()
     for coin in compiled_sentiment:
 
-        # check if the sentiment and number of articles are over the given threshold
-        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES:
 
+        # check if the sentiment and number of articles are over the given threshold
+        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES and coins_in_hand[coin]==0:
             # check the volume looks correct
             print(f'preparing to buy {volume[coin+PAIRING]} {coin} with {PAIRING} at {CURRENT_PRICE[coin+PAIRING]}')
 
@@ -386,7 +400,7 @@ def buy(compiled_sentiment, headlines_analysed):
                 print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} at {utc_time} and bought at {bought_at}")
 
         else:
-            print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
+            print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed or already bought: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
 
 
@@ -401,8 +415,10 @@ def sell(compiled_sentiment, headlines_analysed):
             # check the volume looks correct
             print(f'preparing to sell {coins_in_hand[coin]} {coin} at {CURRENT_PRICE[coin+PAIRING]}')
 
+            amount_to_sell = calculate_one_volume_from_lot_size(coin+PAIRING, coins_in_hand[coin]*99.5/100)
+
             # create test order before pushing an actual order
-            test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=coins_in_hand[coin]*99.5/100 )
+            test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=amount_to_sell)
 
             # try to create a real order if the test orders did not raise an exception
             try:
@@ -410,7 +426,7 @@ def sell(compiled_sentiment, headlines_analysed):
                     symbol=coin+PAIRING,
                     side='SELL',
                     type='MARKET',
-                    quantity=coins_in_hand[coin]*99.5/100
+                    quantity=amount_to_sell
                 )
 
             #error handling here in case position cannot be placed
