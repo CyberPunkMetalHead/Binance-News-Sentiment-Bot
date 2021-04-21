@@ -465,5 +465,9 @@ if __name__ == '__main__':
         buy(compiled_sentiment, headlines_analysed)
         print("\nSELL CHECKS:")
         sell(compiled_sentiment, headlines_analysed)
-        print(f'Iteration {i}')
+        print('\nCurrent bot holdings: ')
+        for coin in coins_in_hand:
+            if coins_in_hand[coin] > 0:
+                print(f'{coin}: {coins_in_hand[coin]}')
+        print(f'\nIteration {i}')
         time.sleep(1 * REPEAT_EVERY)
