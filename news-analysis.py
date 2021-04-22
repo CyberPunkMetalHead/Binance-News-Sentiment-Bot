@@ -470,4 +470,4 @@ if __name__ == '__main__':
             if coins_in_hand[coin] > 0:
                 print(f'{coin}: {coins_in_hand[coin]}')
         print(f'\nIteration {i}')
-        time.sleep(1 * REPEAT_EVERY)
+        time.sleep(60 * REPEAT_EVERY)
