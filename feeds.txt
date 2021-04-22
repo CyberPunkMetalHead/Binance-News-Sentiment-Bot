@@ -1,4 +1,3 @@
-﻿Feeds
 https://cointelegraph.com/feed
 https://www.newsbtc.com/feed/
 https://blog.coinbase.com/feed
@@ -69,7 +68,6 @@ https://www.blockchaincongressusa.com/feed/
 https://cryptstorm.com/feed/
 https://paperblockchain.com/feed/
 http://btcworldnews.com/feed/
-http://bitcoinmxn.com/feed
 https://thebitcoinnews.com/feed/
 https://blog.spectrocoin.com/en/feed/
 https://oilblockchain.news/feed/

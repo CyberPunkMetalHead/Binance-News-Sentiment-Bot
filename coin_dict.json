@@ -1,0 +1,7 @@
+{
+    "BTC": ["BTC", "btc", "bitcoin", "Bitcoin", "BITCOIN"],
+    "ETH": ["ETH", "eth", "ethereum", "Ethereum", "ETHEREUM"],
+    "BNB": ["BNB", "bnb", "Binance Coin"],
+    "XRP": ["XRP", "xrp", "ripple", "Ripple", "RIPPLE"],
+    "LTC": ["LTC", "ltc", "litecoin", "Litecoin", "LITECOIN"]
+}
