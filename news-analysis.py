@@ -41,7 +41,7 @@ from itertools import count
 from timeit import default_timer as timer
 
 # Use testnet (change to True) or live (change to False)?
-testnet = False
+testnet = True
 
 # get binance key and secret from environment variables for testnet and live
 api_key_test = os.getenv('binance_api_stalkbot_testnet')
