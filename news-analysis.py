@@ -17,17 +17,12 @@ from datetime import date, datetime, timedelta
 # used to grab the XML url list from a CSV file
 import csv
 
-# used to save and load Coins in hand list
-import pickle
-
-# for basic system file operations
-import os
-
 # numpy for sums and means
 import numpy as np
 
 # nlp library to analyse sentiment
 import nltk
+import pytz
 from nltk.sentiment import SentimentIntensityAnalyzer
 
 # needed for the binance API
@@ -45,16 +40,25 @@ from itertools import count
 # we use it to time our parser execution speed
 from timeit import default_timer as timer
 
+# Use testnet (change to True) or live (change to False)?
+testnet = True
 
-# get binance key and secret from environment variables
-api_key = os.getenv('binance_api_stalkbot_testnet')
-api_secret = os.getenv('binance_secret_stalkbot_testnet')
+# get binance key and secret from environment variables for testnet and live
+api_key_test = os.getenv('binance_api_stalkbot_testnet')
+api_secret_test = os.getenv('binance_secret_stalkbot_testnet')
+
+api_key_live = os.getenv('binance_api_stalkbot_live')
+api_secret_live = os.getenv('binance_secret_stalkbot_live')
 
 # Authenticate with the client
-client = Client(api_key, api_secret)
+if testnet:
+    client = Client(api_key_test, api_secret_test)
+else:
+    client = Client(api_key_live, api_secret_live)
 
 # The API URL is manually changed in the library to work on the testnet
-client.API_URL = 'https://testnet.binance.vision/api'
+if testnet:
+    client.API_URL = 'https://testnet.binance.vision/api'
 
 
 
@@ -102,6 +106,10 @@ MINUMUM_ARTICLES = 1
 # in minutes
 REPEAT_EVERY = 60
 
+# define how old an article can be to be included
+# in hours
+HOURS_PAST = 24
+
 
 ############################################
 #        END OF USER INPUT VARIABLES       #
@@ -113,19 +121,9 @@ REPEAT_EVERY = 60
 
 # coins that bought by the bot since its start
 coins_in_hand  = {}
-
-# path to the saved coins_in_hand file
-coins_in_hand_file_path = 'coins_in_hand.dat'
-
-# if saved coins_in_hand file does exist then load it
-if os.path.isfile(coins_in_hand_file_path):
-    with open(coins_in_hand_file_path, 'rb') as file:
-        coins_in_hand = pickle.load(file)
-
-# and add coins from actual keywords if they aren't there
+# initializing the volumes at hand
 for coin in keywords:
-    if coin not in coins_in_hand:
-        coins_in_hand[coin] = 0
+  coins_in_hand[coin] = 0
 
 # current price of CRYPTO pulled through the websocket
 CURRENT_PRICE = {}
@@ -147,29 +145,48 @@ for coin in keywords:
 bsm.start()
 
 
-def find_lot_size():
-    '''Find step size for each coin
-    For example, BTC supports a volume accuracy of
-    0.000001, while XRP only 0.1
-    '''
-    lot_size = {}
-    for coin in keywords:
+'''For the amount of CRYPTO to trade in USDT'''
+lot_size = {}
 
-        try:
-            info = client.get_symbol_info(coin+PAIRING)
-            step_size = info['filters'][2]['stepSize']
-            lot_size[coin+PAIRING] = step_size.index('1') - 1
+'''Find step size for each coin
+For example, BTC supports a volume accuracy of
+0.000001, while XRP only 0.1
+'''
+for coin in keywords:
 
-        except:
-            pass
+    try:
+        info = client.get_symbol_info(coin+PAIRING)
+        step_size = info['filters'][2]['stepSize']
+        lot_size[coin+PAIRING] = step_size.index('1') - 1
 
-    return lot_size
+        if lot_size[coin+PAIRING]<0:
+            lot_size[coin+PAIRING]=0
+
+    except:
+        pass
+for coin in keywords:
+    try:
+        info = client.get_symbol_info(coin)
+        step_size = info['filters'][2]['stepSize']
+        lot_size[coin] = step_size.index('1') - 1
+
+        if lot_size[coin]<0:
+            lot_size[coin]=0
+
+    except:
+        pass
+
+
+
+def calculate_one_volume_from_lot_size(coin, amount):
+    if coin not in lot_size:
+        return float('{:.1f}'.format(amount))
+
+    else:
+        return float('{:.{}f}'.format(amount, lot_size[coin]))
 
 
 def calculate_volume():
-    '''Calculate the amount of CRYPTO to trade in USDT'''
-    lot_size = find_lot_size()
-
     while CURRENT_PRICE == {}:
         print('Connecting to the socket...')
         time.sleep(3)
@@ -178,19 +195,7 @@ def calculate_volume():
         volume = {}
         for coin in CURRENT_PRICE:
             volume[coin] = float(QUANTITY / float(CURRENT_PRICE[coin]))
-
-            try:
-                info = client.get_symbol_info(coin)
-                step_size = info['filters'][2]['stepSize']
-                lot_size[coin] = step_size.index('1') - 1
-
-            except:
-                pass
-
-                volume[coin] = float('{:.1f}'.format(volume[coin]))
-
-            else:
-                volume[coin] = float('{:.{}f}'.format(volume[coin], lot_size[coin]))
+            volume[coin] = calculate_one_volume_from_lot_size(coin, volume[coin])
 
         return volume
 
@@ -227,7 +232,7 @@ async def get_feed_data(session, feed, headers):
     :return: None, we don't need to return anything we append it all on the headlines dict
     '''
     try:
-        async with session.get(feed, headers=headers, timeout=7) as response:
+        async with session.get(feed, headers=headers, timeout=60) as response:
             # define the root for our parsing
             text = await response.text()
             root = ET.fromstring(text)
@@ -237,13 +242,21 @@ async def get_feed_data(session, feed, headers):
             # some jank to ensure no alien characters are being passed
             title = channel.encode('UTF-8').decode('UTF-8')
 
-            # append the source
-            headlines['source'].append(feed)
-            # append the publication date
-            headlines['pubDate'].append(pubDate)
-            # append the title
-            headlines['title'].append(title)
-            print(channel)
+            # convert pubDat to datetime
+            published = datetime.strptime(pubDate.replace("GMT", "+0000"), '%a, %d %b %Y %H:%M:%S %z')
+            # calculate timedelta
+            time_between = datetime.now(pytz.utc) - published
+
+            #print(f'Czas: {time_between.total_seconds() / (60 * 60)}')
+
+            if time_between.total_seconds() / (60 * 60) <= HOURS_PAST:
+                # append the source
+                headlines['source'].append(feed)
+                # append the publication date
+                headlines['pubDate'].append(pubDate)
+                # append the title
+                headlines['title'].append(title)
+                print(channel)
 
     except Exception as e:
         # Catch any error and also print it
@@ -356,14 +369,15 @@ def buy(compiled_sentiment, headlines_analysed):
     volume = calculate_volume()
     for coin in compiled_sentiment:
 
-        # check if the sentiment and number of articles are over the given threshold
-        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES:
 
+        # check if the sentiment and number of articles are over the given threshold
+        if compiled_sentiment[coin] > SENTIMENT_THRESHOLD and headlines_analysed[coin] >= MINUMUM_ARTICLES and coins_in_hand[coin]==0:
             # check the volume looks correct
             print(f'preparing to buy {volume[coin+PAIRING]} {coin} with {PAIRING} at {CURRENT_PRICE[coin+PAIRING]}')
 
-            # create test order before pushing an actual order
-            test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
+            if (testnet):
+                # create test order before pushing an actual order
+                test_order = client.create_test_order(symbol=coin+PAIRING, side='BUY', type='MARKET', quantity=volume[coin+PAIRING])
 
             # try to create a real order if the test orders did not raise an exception
             try:
@@ -375,13 +389,8 @@ def buy(compiled_sentiment, headlines_analysed):
                 )
 
             #error handling here in case position cannot be placed
-            except BinanceAPIException as e:
+            except Exception as e:
                 print(e)
-                pass
-
-            except BinanceOrderException as e:
-                print(e)
-                pass
 
             # run the else block if the position has been placed and return some info
             else:
@@ -391,18 +400,21 @@ def buy(compiled_sentiment, headlines_analysed):
                 # retrieve the last order
                 order = client.get_all_orders(symbol=coin+PAIRING, limit=1)
 
-                # convert order timsestamp into UTC format
-                time = order[0]['time'] / 1000
-                utc_time = datetime.fromtimestamp(time)
+                if order:
+                    # convert order timsestamp into UTC format
+                    time = order[0]['time'] / 1000
+                    utc_time = datetime.fromtimestamp(time)
 
-                # grab the price of CRYPTO the order was placed at for reporting
-                bought_at = CURRENT_PRICE[coin+PAIRING]
+                    # grab the price of CRYPTO the order was placed at for reporting
+                    bought_at = CURRENT_PRICE[coin+PAIRING]
 
-                # print order condirmation to the console
-                print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} at {utc_time} and bought at {bought_at}")
+                    # print order condirmation to the console
+                    print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} at {utc_time} and bought at {bought_at}")
+                else:
+                    print('Could not get last order from Binance!')
 
         else:
-            print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
+            print(f'Sentiment not positive enough for {coin}, or not enough headlines analysed or already bought: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
 
 
@@ -417,8 +429,11 @@ def sell(compiled_sentiment, headlines_analysed):
             # check the volume looks correct
             print(f'preparing to sell {coins_in_hand[coin]} {coin} at {CURRENT_PRICE[coin+PAIRING]}')
 
-            # create test order before pushing an actual order
-            test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=coins_in_hand[coin]*99.5/100 )
+            amount_to_sell = calculate_one_volume_from_lot_size(coin+PAIRING, coins_in_hand[coin]*99.5/100)
+
+            if (testnet):
+                # create test order before pushing an actual order
+                test_order = client.create_test_order(symbol=coin+PAIRING, side='SELL', type='MARKET', quantity=amount_to_sell)
 
             # try to create a real order if the test orders did not raise an exception
             try:
@@ -426,14 +441,11 @@ def sell(compiled_sentiment, headlines_analysed):
                     symbol=coin+PAIRING,
                     side='SELL',
                     type='MARKET',
-                    quantity=coins_in_hand[coin]*99.5/100
+                    quantity=amount_to_sell
                 )
 
             #error handling here in case position cannot be placed
-            except BinanceAPIException as e:
-                print(e)
-
-            except BinanceOrderException as e:
+            except Exception as e:
                 print(e)
 
             # run the else block if the position has been placed and return some info
@@ -443,27 +455,21 @@ def sell(compiled_sentiment, headlines_analysed):
                 # retrieve the last order
                 order = client.get_all_orders(symbol=coin+PAIRING, limit=1)
 
-                # convert order timsestamp into UTC format
-                time = order[0]['time'] / 1000
-                utc_time = datetime.fromtimestamp(time)
+                if order:
+                    # convert order timsestamp into UTC format
+                    time = order[0]['time'] / 1000
+                    utc_time = datetime.fromtimestamp(time)
 
-                # grab the price of CRYPTO the order was placed at for reporting
-                sold_at = CURRENT_PRICE[coin+PAIRING]
+                    # grab the price of CRYPTO the order was placed at for reporting
+                    sold_at = CURRENT_PRICE[coin+PAIRING]
 
-                # print order condirmation to the console
-                print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} coins sold for {sold_at} each at {utc_time}")
+                    # print order condirmation to the console
+                    print(f"order {order[0]['orderId']} has been placed on {coin} with {order[0]['origQty']} coins sold for {sold_at} each at {utc_time}")
+                else:
+                    print('Could not get last order from Binance!')
 
         else:
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
-
-def save_coins_in_hand_to_file():
-    # abort saving if dictionary is empty
-    if not coins_in_hand:
-        return
-
-    # save to coins_in_hand.dat
-    with open(coins_in_hand_file_path, 'wb') as file:
-        pickle.dump(coins_in_hand, file)
 
 
 if __name__ == '__main__':
@@ -474,6 +480,9 @@ if __name__ == '__main__':
         buy(compiled_sentiment, headlines_analysed)
         print("\nSELL CHECKS:")
         sell(compiled_sentiment, headlines_analysed)
-        save_coins_in_hand_to_file()
-        print(f'Iteration {i}')
-        time.sleep(1 * REPEAT_EVERY)
+        print('\nCurrent bot holdings: ')
+        for coin in coins_in_hand:
+            if coins_in_hand[coin] > 0:
+                print(f'{coin}: {coins_in_hand[coin]}')
+        print(f'\nIteration {i}')
+        time.sleep(60 * REPEAT_EVERY)
