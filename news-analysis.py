@@ -17,6 +17,12 @@ from datetime import date, datetime, timedelta
 # used to grab the XML url list from a CSV file
 import csv
 
+# used to save and load coins_in_hand dictionary
+import json
+
+# for basic system file operations
+import os
+
 # numpy for sums and means
 import numpy as np
 
@@ -121,9 +127,23 @@ HOURS_PAST = 24
 
 # coins that bought by the bot since its start
 coins_in_hand  = {}
-# initializing the volumes at hand
+
+# path to the saved coins_in_hand file
+coins_in_hand_file_path = 'coins_in_hand.json'
+
+# use separate files for testnet and live
+if testnet:
+    coins_in_hand_file_path = 'testnet_' + coins_in_hand_file_path
+
+# if saved coins_in_hand json file exists then load it
+if os.path.isfile(coins_in_hand_file_path):
+    with open(coins_in_hand_file_path) as file:
+        coins_in_hand = json.load(file)
+
+# and add coins from actual keywords if they aren't in coins_in_hand dictionary already
 for coin in keywords:
-  coins_in_hand[coin] = 0
+    if coin not in coins_in_hand:
+        coins_in_hand[coin] = 0
 
 # current price of CRYPTO pulled through the websocket
 CURRENT_PRICE = {}
@@ -470,6 +490,17 @@ def sell(compiled_sentiment, headlines_analysed):
 
         else:
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
+
+
+def save_coins_in_hand_to_file():
+    # abort saving if dictionary is empty
+    if not coins_in_hand:
+        return
+
+    # save coins_in_hand to file
+    with open(coins_in_hand_file_path, 'w') as file:
+        json.dump(coins_in_hand, file, indent=4)
+
 
 
 if __name__ == '__main__':
