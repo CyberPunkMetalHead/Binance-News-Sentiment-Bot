@@ -515,5 +515,6 @@ if __name__ == '__main__':
         for coin in coins_in_hand:
             if coins_in_hand[coin] > 0:
                 print(f'{coin}: {coins_in_hand[coin]}')
+        save_coins_in_hand_to_file()
         print(f'\nIteration {i}')
         time.sleep(60 * REPEAT_EVERY)
