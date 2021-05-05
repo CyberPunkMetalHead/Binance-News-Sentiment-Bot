@@ -124,7 +124,6 @@ HOURS_PAST = 24
 
 # coins that bought by the bot since its start
 coins_in_hand  = {}
-# initializing the volumes at hand
 
 # path to the saved coins_in_hand file
 coins_in_hand_file_path = 'coins_in_hand.json'
