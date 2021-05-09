@@ -43,6 +43,9 @@ from itertools import count
 # we use it to time our parser execution speed
 from timeit import default_timer as timer
 
+# for memory
+import pandas as pd
+
 # Use testnet (change to True) or live (change to False)?
 testnet = True
 
@@ -488,6 +491,30 @@ def sell(compiled_sentiment, headlines_analysed):
         else:
             print(f'Sentiment not negative enough for {coin}, not enough headlines analysed or not enough {coin} to sell: {compiled_sentiment[coin]}, {headlines_analysed[coin]}')
 
+# give bot a memory
+def write_memory(compiled_sentiment, headlines_analysed):
+
+    data = {}
+    data['Date'] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    for coin in keywords:
+       try:
+          info = client.get_symbol_ticker(symbol=coin+PAIRING)
+          data[info['symbol'] + '-price'] = info['price']
+          data[info['symbol'] + '-sentiment'] = compiled_sentiment[coin]
+          data[info['symbol'] + '-headlines'] = headlines_analysed[coin]
+       except:
+          pass
+
+    df1  = pd.DataFrame(data, index=[0])
+
+    if os.path.isfile("memory.csv"):
+        df2 = pd.read_csv("memory.csv")
+        df = df2.append(df1, ignore_index=True)
+    else:
+        df = df1
+
+    df.to_csv('memory.csv',index=False)
 
 def save_coins_in_hand_to_file():
     # abort saving if dictionary is empty
@@ -513,5 +540,6 @@ if __name__ == '__main__':
             if coins_in_hand[coin] > 0:
                 print(f'{coin}: {coins_in_hand[coin]}')
         save_coins_in_hand_to_file()
+        write_memory(compiled_sentiment, headlines_analysed)
         print(f'\nIteration {i}')
         time.sleep(60 * REPEAT_EVERY)
