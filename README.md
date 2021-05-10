@@ -20,10 +20,12 @@ Works with any number of cryptocurrencies
 For a complete step-by-step setup guide please see: https://www.cryptomaton.org/2021/04/17/how-to-code-a-binance-crypto-trading-bot-that-trades-based-on-daily-news-sentiment/
 
 ## Known Issues:
-If you receive an error similar to: ```PS C:\Users\matt\git\Binance-News-Sentiment-Bot> python ./news-analysis.py --test=true
+If you receive an error similar to
+```python news-analysis.py
 Traceback (most recent call last):
-  File "C:\Users\matt\git\Binance-News-Sentiment-Bot\news-analysis.py", line 41, in <module>
+  File "news-analysis.py", line 41, in <module>
     from binance.websockets import BinanceSocketManager
-ModuleNotFoundError: No module named 'binance.websockets'```
+ModuleNotFoundError: No module named 'binance.websockets'
+```
 you should install python-binance at an older version (pre 1.0.0)
 `pip install python-binance==0.7.1`
