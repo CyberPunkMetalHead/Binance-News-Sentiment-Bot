@@ -120,7 +120,8 @@ HOURS_PAST = 24
 ############################################
 
 
-
+# download vader_lexicon
+nltk.download('vader_lexicon')
 
 # coins that bought by the bot since its start
 coins_in_hand  = {}
